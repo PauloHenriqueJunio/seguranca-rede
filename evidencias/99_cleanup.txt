@@ -1,0 +1,15 @@
+
+=== contadores no fw ===
+
+--- [fw] iptables -L FORWARD -v -n --line-numbers | head -10 ---
+Chain FORWARD (policy ACCEPT 0 packets, 0 bytes)
+num   pkts bytes target     prot opt in     out     source               destination         
+
+--- [fw] iptables -L P2P -v -n 2>/dev/null || echo '(cadeia P2P nao existe)' ---
+(cadeia P2P nao existe)
+
+--- [fw] iptables -L L7 -v -n 2>/dev/null || echo '(cadeia L7 nao existe)' ---
+(cadeia L7 nao existe)
+
+--- [fw] iptables -L L7HTTP -v -n 2>/dev/null || echo '(cadeia L7HTTP nao existe)' ---
+(cadeia L7HTTP nao existe)

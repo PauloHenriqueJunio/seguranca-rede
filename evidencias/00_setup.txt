@@ -1,0 +1,9 @@
+
+--- [web] ps aux | grep -E 'bt_peer|http.server' | grep -v grep ---
+root        63  0.3  0.1  14408  9728 ?        S    15:23   0:00 python3 /shared/bt_peer.py server 6881
+root        70  0.0  0.1  14408  9472 ?        S    15:23   0:00 python3 /shared/bt_peer.py server 443
+root        84  0.0  0.0   4352  1556 ?        S    15:23   0:00 bash -c cd /tmp/www && nohup python3 -m http.server 80 > /tmp/http80.log 2>&1 &
+root        85  1.0  0.3  25664 18688 ?        S    15:23   0:00 python3 -m http.server 80
+
+--- [pc1] ps aux | grep bt_peer | grep -v grep ---
+root        62  0.2  0.1  14408  9600 ?        S    15:23   0:00 python3 /shared/bt_peer.py server 6881

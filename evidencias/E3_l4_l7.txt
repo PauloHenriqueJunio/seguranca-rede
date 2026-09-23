@@ -1,0 +1,54 @@
+
+=== E3a - BT cliente pc1 -> web:6881 (bloqueado pelo L4) ===
+
+--- [pc1] timeout 8 python3 /shared/bt_peer.py client 10.0.2.10 6881 ---
+[client] conectando em 10.0.2.10:6881 para enviar BitTorrent handshake (68 bytes)
+[client] RESULTADO: BLOQUEADO / FALHOU (TimeoutError: timed out)
+
+=== E3b - BT cliente pc1 -> web:443 (L4 deixaria passar, L7 bloqueia) ===
+
+--- [pc1] timeout 8 python3 /shared/bt_peer.py client 10.0.2.10 443 ---
+[client] conectando em 10.0.2.10:443 para enviar BitTorrent handshake (68 bytes)
+[client] enviado, aguardando resposta/echo...
+[client] conectou e enviou, mas sem resposta (timeout) - ok para este teste
+[client] RESULTADO: CONECTOU (nao foi bloqueado)
+
+--- [web] tail -n 3 /tmp/srv443.log ---
+[server] conexao de ('10.0.1.10', 40352), 29 bytes recebidos:
+[server] b'HELLO nao-BT so texto normal\n'
+[server] conexao de ('10.0.1.10', 48260) aceita, mas nenhum dado chegou (timeout)
+
+=== E3c - HTTP /admin/ (bloqueado pelo L7) ===
+
+--- [pc1] curl -s -o /dev/null -w 'GET /admin/ -> %{http_code}\n' --max-time 4 http://10.0.2.10/admin/ || echo 'GET /admin/ -> conexao recusada/resetada' ---
+GET /admin/ -> 000
+GET /admin/ -> conexao recusada/resetada
+
+=== contadores no fw ===
+
+--- [fw] iptables -L FORWARD -v -n --line-numbers | head -10 ---
+Chain FORWARD (policy ACCEPT 0 packets, 0 bytes)
+num   pkts bytes target     prot opt in     out     source               destination         
+1        6   720 L7         6    --  eth0   *       0.0.0.0/0            0.0.0.0/0            STRING match  "|13426974546f7272656e742070726f746f636f6c|" ALGO name bm
+2        0     0 L7         6    --  *      eth0    0.0.0.0/0            0.0.0.0/0            STRING match  "|13426974546f7272656e742070726f746f636f6c|" ALGO name bm
+3        0     0 L7         17   --  eth0   *       0.0.0.0/0            0.0.0.0/0            STRING match  "d1:ad2:id20:" ALGO name bm
+4        0     0 L7         17   --  *      eth0    0.0.0.0/0            0.0.0.0/0            STRING match  "d1:ad2:id20:" ALGO name bm
+5        1   131 L7HTTP     6    --  eth0   eth1    0.0.0.0/0            0.0.0.0/0            tcp dpt:80 STRING match  "GET /admin" ALGO name bm
+6        4   240 P2P        6    --  eth0   *       0.0.0.0/0            0.0.0.0/0            multiport dports 6881:6999,6969
+7        0     0 P2P        17   --  eth0   *       0.0.0.0/0            0.0.0.0/0            multiport dports 6881:6999,6969
+8        0     0 P2P        6    --  *      eth0    0.0.0.0/0            0.0.0.0/0            multiport dports 6881:6999,6969
+
+--- [fw] iptables -L P2P -v -n 2>/dev/null || echo '(cadeia P2P nao existe)' ---
+Chain P2P (4 references)
+ pkts bytes target     prot opt in     out     source               destination         
+    4   240 DROP       0    --  *      *       0.0.0.0/0            0.0.0.0/0           
+
+--- [fw] iptables -L L7 -v -n 2>/dev/null || echo '(cadeia L7 nao existe)' ---
+Chain L7 (4 references)
+ pkts bytes target     prot opt in     out     source               destination         
+    6   720 DROP       0    --  *      *       0.0.0.0/0            0.0.0.0/0           
+
+--- [fw] iptables -L L7HTTP -v -n 2>/dev/null || echo '(cadeia L7HTTP nao existe)' ---
+Chain L7HTTP (1 references)
+ pkts bytes target     prot opt in     out     source               destination         
+    1   131 REJECT     6    --  *      *       0.0.0.0/0            0.0.0.0/0            reject-with tcp-reset

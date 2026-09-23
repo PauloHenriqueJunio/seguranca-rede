@@ -1,0 +1,31 @@
+
+=== BT cliente pc1 -> web:6881 (deve PASSAR) ===
+
+--- [pc1] timeout 8 python3 /shared/bt_peer.py client 10.0.2.10 6881 ---
+[client] conectando em 10.0.2.10:6881 para enviar BitTorrent handshake (68 bytes)
+[client] enviado, aguardando resposta/echo...
+[client] 0 bytes de volta: b''
+[client] RESULTADO: CONECTOU (nao foi bloqueado)
+
+=== HTTP pc1 -> web /public/ e /admin/ (devem PASSAR os dois, ainda sem controle) ===
+
+--- [pc1] curl -s -o /dev/null -w 'GET /public/ -> %{http_code}\n' --max-time 4 http://10.0.2.10/public/ ---
+GET /public/ -> 200
+
+--- [pc1] curl -s -o /dev/null -w 'GET /admin/ -> %{http_code}\n' --max-time 4 http://10.0.2.10/admin/ ---
+GET /admin/ -> 200
+
+=== contadores no fw ===
+
+--- [fw] iptables -L FORWARD -v -n --line-numbers | head -10 ---
+Chain FORWARD (policy ACCEPT 0 packets, 0 bytes)
+num   pkts bytes target     prot opt in     out     source               destination         
+
+--- [fw] iptables -L P2P -v -n 2>/dev/null || echo '(cadeia P2P nao existe)' ---
+(cadeia P2P nao existe)
+
+--- [fw] iptables -L L7 -v -n 2>/dev/null || echo '(cadeia L7 nao existe)' ---
+(cadeia L7 nao existe)
+
+--- [fw] iptables -L L7HTTP -v -n 2>/dev/null || echo '(cadeia L7HTTP nao existe)' ---
+(cadeia L7HTTP nao existe)

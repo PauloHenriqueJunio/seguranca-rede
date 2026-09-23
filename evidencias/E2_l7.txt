@@ -1,0 +1,65 @@
+
+=== E2  - BT cliente pc1 -> web:443 (mesma porta do E1c, agora deve BLOQUEAR pelo conteudo) ===
+
+===   nota: o TCP handshake (SYN/SYN-ACK/ACK) nao carrega dado, entao 'conecta' mesmo ===
+
+===   bloqueado - quem confirma o bloqueio e o servidor NUNCA receber os 68 bytes: ===
+
+--- [pc1] timeout 8 python3 /shared/bt_peer.py client 10.0.2.10 443 ---
+[client] conectando em 10.0.2.10:443 para enviar BitTorrent handshake (68 bytes)
+[client] enviado, aguardando resposta/echo...
+[client] conectou e enviou, mas sem resposta (timeout) - ok para este teste
+[client] RESULTADO: CONECTOU (nao foi bloqueado)
+
+--- [web] tail -n 3 /tmp/srv443.log ---
+[server] conexao de ('10.0.1.10', 46458), 68 bytes recebidos:
+[server] b'\x13BitTorrent protocol\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x02\x03\x04\x05\x06\x07\x08\t\n\x0b\x0c\r\x0e\x0f\x10\x11\x12\x13-PY0001-000000000000'
+[server] conexao de ('10.0.1.10', 56300) aceita, mas nenhum dado chegou (timeout)
+
+=== E2b - trafego NAO-BT pc1 -> web:443 (deve PASSAR - L7 olha o conteudo, nao a porta) ===
+
+--- [pc1] timeout 8 python3 /shared/bt_peer.py client 10.0.2.10 443 --plain ---
+[client] conectando em 10.0.2.10:443 para enviar PLAIN (nao-BT) (29 bytes)
+[client] enviado, aguardando resposta/echo...
+[client] 0 bytes de volta: b''
+[client] RESULTADO: CONECTOU (nao foi bloqueado)
+
+=== E2c - consulta DHT pc1 -> web:33445/udp, porta fora do range do L4 (deve BLOQUEAR pelo conteudo) ===
+
+--- [pc1] timeout 8 python3 /shared/bt_peer.py dht 10.0.2.10 33445 ---
+[dht] enviando consulta DHT (56 bytes) para 10.0.2.10:33445/udp
+[dht] enviado, sem resposta (timeout) - normal se o outro lado nao responde DHT de verdade
+[dht] RESULTADO: pacote SAIU sem erro de socket (ver tcpdump/contadores para saber se foi bloqueado)
+
+=== E2d - HTTP pc1 -> web /public/ e /admin/ (so /admin/ deve BLOQUEAR, com RST) ===
+
+--- [pc1] curl -s -o /dev/null -w 'GET /public/ -> %{http_code}\n' --max-time 4 http://10.0.2.10/public/ ---
+GET /public/ -> 200
+
+--- [pc1] curl -s -o /dev/null -w 'GET /admin/ -> %{http_code}\n' --max-time 4 http://10.0.2.10/admin/ || echo 'GET /admin/ -> conexao recusada/resetada' ---
+GET /admin/ -> 000
+GET /admin/ -> conexao recusada/resetada
+
+=== contadores no fw ===
+
+--- [fw] iptables -L FORWARD -v -n --line-numbers | head -10 ---
+Chain FORWARD (policy ACCEPT 0 packets, 0 bytes)
+num   pkts bytes target     prot opt in     out     source               destination         
+1        6   720 L7         6    --  eth0   *       0.0.0.0/0            0.0.0.0/0            STRING match  "|13426974546f7272656e742070726f746f636f6c|" ALGO name bm
+2        0     0 L7         6    --  *      eth0    0.0.0.0/0            0.0.0.0/0            STRING match  "|13426974546f7272656e742070726f746f636f6c|" ALGO name bm
+3        1    84 L7         17   --  eth0   *       0.0.0.0/0            0.0.0.0/0            STRING match  "d1:ad2:id20:" ALGO name bm
+4        0     0 L7         17   --  *      eth0    0.0.0.0/0            0.0.0.0/0            STRING match  "d1:ad2:id20:" ALGO name bm
+5        1   131 L7HTTP     6    --  eth0   eth1    0.0.0.0/0            0.0.0.0/0            tcp dpt:80 STRING match  "GET /admin" ALGO name bm
+
+--- [fw] iptables -L P2P -v -n 2>/dev/null || echo '(cadeia P2P nao existe)' ---
+(cadeia P2P nao existe)
+
+--- [fw] iptables -L L7 -v -n 2>/dev/null || echo '(cadeia L7 nao existe)' ---
+Chain L7 (4 references)
+ pkts bytes target     prot opt in     out     source               destination         
+    7   804 DROP       0    --  *      *       0.0.0.0/0            0.0.0.0/0           
+
+--- [fw] iptables -L L7HTTP -v -n 2>/dev/null || echo '(cadeia L7HTTP nao existe)' ---
+Chain L7HTTP (1 references)
+ pkts bytes target     prot opt in     out     source               destination         
+    1   131 REJECT     6    --  *      *       0.0.0.0/0            0.0.0.0/0            reject-with tcp-reset

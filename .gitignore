@@ -1,0 +1,15 @@
+README.md
+
+.DS_Store
+Thumbs.db
+desktop.ini
+
+__pycache__/
+*.pyc
+
+*.log
+*.tmp
+*.swp
+
+.vscode/
+.idea/

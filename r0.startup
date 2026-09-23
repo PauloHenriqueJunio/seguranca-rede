@@ -1,0 +1,6 @@
+ifconfig eth0 198.51.100.2/30
+route add -net 10.0.1.0/24 gw 198.51.100.1
+route add -net 10.0.2.0/24 gw 198.51.100.1
+route add -net 10.0.3.0/24 gw 198.51.100.1
+
+
