@@ -61,7 +61,7 @@ def cmd_client(ip, port, plain):
             data = s.recv(256)
             print(f"[client] {len(data)} bytes de volta: {data!r}")
         except socket.timeout:
-            print("[client] conectou e enviou, mas sem resposta (timeout) - ok para este teste")
+            print("[client] conectou e enviou, mas sem resposta (timeout)")
         print("[client] RESULTADO: CONECTOU (nao foi bloqueado)")
     except (socket.timeout, ConnectionRefusedError, OSError) as e:
         print(f"[client] RESULTADO: BLOQUEADO / FALHOU ({type(e).__name__}: {e})")
@@ -80,8 +80,8 @@ def cmd_dht(ip, port):
             data, addr = s.recvfrom(256)
             print(f"[dht] resposta de {addr}: {data!r}")
         except socket.timeout:
-            print("[dht] enviado, sem resposta (timeout) - normal se o outro lado nao responde DHT de verdade")
-        print("[dht] RESULTADO: pacote SAIU sem erro de socket (ver tcpdump/contadores para saber se foi bloqueado)")
+            print("[dht] enviado, sem resposta (timeout)")
+        print("[dht] RESULTADO: pacote SAIU sem erro de socket")
     except OSError as e:
         print(f"[dht] RESULTADO: FALHOU ao enviar ({type(e).__name__}: {e})")
     finally:
