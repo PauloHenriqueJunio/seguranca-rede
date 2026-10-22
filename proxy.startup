@@ -1,4 +1,4 @@
-# Rodar o comando docker build -t kathara-proxy .
+# Rodar o comando docker build -t kathara-proxy . (coloca o ponto plmds)
 ifconfig eth0 10.0.2.12/24
 route add default gw 10.0.2.1
 service nginx start
