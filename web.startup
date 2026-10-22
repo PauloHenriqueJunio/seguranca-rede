@@ -1,2 +1,4 @@
 ifconfig eth0 10.0.2.10/24
 route add default gw 10.0.2.1
+cd /var/www/html
+nohup python3 -m http.server 80 > /tmp/http80.log 2>&1 &
