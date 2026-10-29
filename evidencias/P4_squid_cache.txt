@@ -1,0 +1,52 @@
+
+=== 4 requisicoes seguidas a http://ok.lab/admin/ (header X-Cache e Age mostram se veio do cache) ===
+
+--- [pc1] echo "requisicao 1:"; curl -s -m 8 -D - -o /dev/null -x http://10.0.1.12:3128 http://ok.lab/admin/ | grep -iE '^(HTTP|X-Cache|Age)' ---
+requisicao 1:
+HTTP/1.1 200 OK
+Age: 0
+X-Cache: HIT from proxy
+X-Cache-Lookup: HIT from proxy:3128
+
+--- [pc1] echo "requisicao 2:"; curl -s -m 8 -D - -o /dev/null -x http://10.0.1.12:3128 http://ok.lab/admin/ | grep -iE '^(HTTP|X-Cache|Age)' ---
+requisicao 2:
+HTTP/1.1 200 OK
+Age: 1
+X-Cache: HIT from proxy
+X-Cache-Lookup: HIT from proxy:3128
+
+--- [pc1] echo "requisicao 3:"; curl -s -m 8 -D - -o /dev/null -x http://10.0.1.12:3128 http://ok.lab/admin/ | grep -iE '^(HTTP|X-Cache|Age)' ---
+requisicao 3:
+HTTP/1.1 200 OK
+Age: 2
+X-Cache: HIT from proxy
+X-Cache-Lookup: HIT from proxy:3128
+
+--- [pc1] echo "requisicao 4:"; curl -s -m 8 -D - -o /dev/null -x http://10.0.1.12:3128 http://ok.lab/admin/ | grep -iE '^(HTTP|X-Cache|Age)' ---
+requisicao 4:
+HTTP/1.1 200 OK
+Age: 3
+X-Cache: HIT from proxy
+X-Cache-Lookup: HIT from proxy:3128
+
+=== Requisicao forcada a ir ao servidor (Cache-Control: no-cache) ===
+
+--- [pc1] curl -s -m 8 -D - -o /dev/null -H 'Cache-Control: no-cache' -x http://10.0.1.12:3128 http://ok.lab/admin/ | grep -iE '^(HTTP|X-Cache|Age)' ---
+HTTP/1.1 200 OK
+X-Cache: MISS from proxy
+X-Cache-Lookup: MISS from proxy:3128
+
+=== access.log do Squid: TCP_MISS na 1a, TCP_MEM_HIT nas seguintes ===
+
+--- [proxy] cat /var/log/squid/access.log ---
+1793285442.074      3 10.0.1.10 TCP_REFRESH_UNMODIFIED/200 406 GET http://ok.lab/admin/ - HIER_DIRECT/10.0.2.10 text/html
+1793285443.169      0 10.0.1.10 TCP_MEM_HIT/200 406 GET http://ok.lab/admin/ - HIER_NONE/- text/html
+1793285444.243      0 10.0.1.10 TCP_MEM_HIT/200 406 GET http://ok.lab/admin/ - HIER_NONE/- text/html
+1793285445.334      0 10.0.1.10 TCP_MEM_HIT/200 406 GET http://ok.lab/admin/ - HIER_NONE/- text/html
+1793285446.466      1 10.0.1.10 TCP_MISS/200 400 GET http://ok.lab/admin/ - HIER_DIRECT/10.0.2.10 text/html
+
+=== Log do web: quantas vezes o web realmente atendeu /admin/? (esperado: 2 = 1 MISS + 1 forcada) ===
+
+--- [web] cat /tmp/http80.log ---
+10.0.1.12 - - [29/Oct/2026 14:50:42] "GET /admin/ HTTP/1.1" 304 -
+10.0.1.12 - - [29/Oct/2026 14:50:46] "GET /admin/ HTTP/1.1" 200 -

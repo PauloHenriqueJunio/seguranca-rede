@@ -1,2 +1,10 @@
 ifconfig eth0 10.0.1.11/24
 route add default gw 10.0.1.1
+
+# Usa o Squid (proxy, 10.0.1.12:3128) como proxy HTTP/HTTPS em shells interativos
+cat > /etc/profile.d/proxy.sh <<'PROXY'
+export http_proxy=http://10.0.1.12:3128
+export https_proxy=http://10.0.1.12:3128
+export no_proxy=localhost,127.0.0.1
+PROXY
+cat /etc/profile.d/proxy.sh >> /root/.bashrc

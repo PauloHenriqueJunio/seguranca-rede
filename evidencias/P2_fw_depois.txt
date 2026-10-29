@@ -1,0 +1,49 @@
+
+=== Internet (r0) -> web DIRETO (deve BLOQUEAR) ===
+
+--- [r0] curl -s -m 4 -o /dev/null -w 'r0 DIRETO -> http://10.0.2.10/ : HTTP %{http_code}\n' --noproxy '*' http://10.0.2.10/ || echo 'r0 DIRETO -> http://10.0.2.10/ : BLOQUEADO/SEM RESPOSTA (curl exit '$?')' ---
+r0 DIRETO -> http://10.0.2.10/ : HTTP 000
+r0 DIRETO -> http://10.0.2.10/ : BLOQUEADO/SEM RESPOSTA (curl exit 28)
+
+=== Internet (r0) -> rp (deve PASSAR; o rp busca no web) ===
+
+--- [r0] curl -s -m 4 -o /dev/null -w 'r0 DIRETO -> http://10.0.2.12/ : HTTP %{http_code}\n' --noproxy '*' http://10.0.2.12/ || echo 'r0 DIRETO -> http://10.0.2.12/ : BLOQUEADO/SEM RESPOSTA (curl exit '$?')' ---
+r0 DIRETO -> http://10.0.2.12/ : HTTP 200
+
+--- [r0] curl -s -m 4 --noproxy '*' http://10.0.2.12/ | grep -E 'OK-WEB' ---
+    <h1>OK-WEB</h1>
+
+=== No web: quem apareceu como cliente? (so o rp, 10.0.2.12) ===
+
+--- [web] tail -n 3 /tmp/http80.log ---
+10.0.1.10 - - [29/Oct/2026 14:49:54] "GET / HTTP/1.1" 200 -
+10.0.2.12 - - [29/Oct/2026 14:50:04] "GET / HTTP/1.0" 200 -
+10.0.2.12 - - [29/Oct/2026 14:50:05] "GET / HTTP/1.0" 200 -
+
+=== pc1/pc2 DIRETO -> web e -> Internet (deve BLOQUEAR: so o Squid sai) ===
+
+--- [pc1] curl -s -m 4 -o /dev/null -w 'pc1 DIRETO -> http://10.0.2.10/ : HTTP %{http_code}\n' --noproxy '*' http://10.0.2.10/ || echo 'pc1 DIRETO -> http://10.0.2.10/ : BLOQUEADO/SEM RESPOSTA (curl exit '$?')' ---
+pc1 DIRETO -> http://10.0.2.10/ : HTTP 000
+pc1 DIRETO -> http://10.0.2.10/ : BLOQUEADO/SEM RESPOSTA (curl exit 28)
+
+--- [pc2] curl -s -m 4 -o /dev/null -w 'pc2 DIRETO -> http://198.51.100.2/ : HTTP %{http_code}\n' --noproxy '*' http://198.51.100.2/ || echo 'pc2 DIRETO -> http://198.51.100.2/ : BLOQUEADO/SEM RESPOSTA (curl exit '$?')' ---
+pc2 DIRETO -> http://198.51.100.2/ : HTTP 000
+pc2 DIRETO -> http://198.51.100.2/ : BLOQUEADO/SEM RESPOSTA (curl exit 28)
+
+=== pc1/pc2 VIA SQUID -> web e -> Internet (deve PASSAR) ===
+
+--- [pc1] curl -s -m 8 -o /dev/null -w 'pc1 via Squid -> http://ok.lab/ : HTTP %{http_code}\n' -x http://10.0.1.12:3128 http://ok.lab/ || echo 'pc1 via Squid -> http://ok.lab/ : FALHOU (curl exit '$?')' ---
+pc1 via Squid -> http://ok.lab/ : HTTP 200
+
+--- [pc2] curl -s -m 8 -o /dev/null -w 'pc2 via Squid -> http://externo.lab/ : HTTP %{http_code}\n' -x http://10.0.1.12:3128 http://externo.lab/ || echo 'pc2 via Squid -> http://externo.lab/ : FALHOU (curl exit '$?')' ---
+pc2 via Squid -> http://externo.lab/ : HTTP 200
+
+--- [fw] iptables -L FORWARD -v -n --line-numbers ---
+Chain FORWARD (policy DROP 8 packets, 480 bytes)
+num   pkts bytes target     prot opt in     out     source               destination         
+1       37  3675 ACCEPT     0    --  *      *       0.0.0.0/0            0.0.0.0/0            ctstate RELATED,ESTABLISHED
+2        2   116 ACCEPT     0    --  eth0   eth3    10.0.1.12            0.0.0.0/0            ctstate NEW
+3        1    60 ACCEPT     6    --  eth0   eth1    10.0.1.12            10.0.2.10            multiport dports 80,443 ctstate NEW
+4        2   120 ACCEPT     6    --  eth3   eth1    0.0.0.0/0            10.0.2.12            tcp dpt:80 ctstate NEW
+5        0     0 ACCEPT     6    --  eth2   eth1    0.0.0.0/0            10.0.2.12            tcp dpt:80 ctstate NEW
+6        4   240 DROP       0    --  eth3   *       0.0.0.0/0            10.0.2.10           

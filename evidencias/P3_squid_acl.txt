@@ -1,0 +1,51 @@
+
+=== Acesso permitido (ok.lab) - pc1 e pc2 ===
+
+--- [pc1] curl -s -m 8 -o /dev/null -w 'pc1 via Squid -> http://ok.lab/ : HTTP %{http_code}\n' -x http://10.0.1.12:3128 http://ok.lab/ || echo 'pc1 via Squid -> http://ok.lab/ : FALHOU (curl exit '$?')' ---
+pc1 via Squid -> http://ok.lab/ : HTTP 200
+
+--- [pc2] curl -s -m 8 -o /dev/null -w 'pc2 via Squid -> http://ok.lab/ : HTTP %{http_code}\n' -x http://10.0.1.12:3128 http://ok.lab/ || echo 'pc2 via Squid -> http://ok.lab/ : FALHOU (curl exit '$?')' ---
+pc2 via Squid -> http://ok.lab/ : HTTP 200
+
+=== Dominio bloqueado (bloqueado.lab) - ninguem acessa ===
+
+--- [pc1] curl -s -m 8 -o /dev/null -w 'pc1 via Squid -> http://bloqueado.lab/ : HTTP %{http_code}\n' -x http://10.0.1.12:3128 http://bloqueado.lab/ || echo 'pc1 via Squid -> http://bloqueado.lab/ : FALHOU (curl exit '$?')' ---
+pc1 via Squid -> http://bloqueado.lab/ : HTTP 403
+
+--- [pc2] curl -s -m 8 -o /dev/null -w 'pc2 via Squid -> http://bloqueado.lab/ : HTTP %{http_code}\n' -x http://10.0.1.12:3128 http://bloqueado.lab/ || echo 'pc2 via Squid -> http://bloqueado.lab/ : FALHOU (curl exit '$?')' ---
+pc2 via Squid -> http://bloqueado.lab/ : HTTP 403
+
+=== Controle por cliente (restrito.lab) - pc1 pode, pc2 nao ===
+
+--- [pc1] curl -s -m 8 -o /dev/null -w 'pc1 via Squid -> http://restrito.lab/ : HTTP %{http_code}\n' -x http://10.0.1.12:3128 http://restrito.lab/ || echo 'pc1 via Squid -> http://restrito.lab/ : FALHOU (curl exit '$?')' ---
+pc1 via Squid -> http://restrito.lab/ : HTTP 200
+
+--- [pc2] curl -s -m 8 -o /dev/null -w 'pc2 via Squid -> http://restrito.lab/ : HTTP %{http_code}\n' -x http://10.0.1.12:3128 http://restrito.lab/ || echo 'pc2 via Squid -> http://restrito.lab/ : FALHOU (curl exit '$?')' ---
+pc2 via Squid -> http://restrito.lab/ : HTTP 403
+
+=== HTTPS (CONNECT): permitido x bloqueado ===
+
+--- [pc1] curl -sk -m 8 -x http://10.0.1.12:3128 https://ok.lab/ | head -n 3 || echo 'falhou' ---
+<HTML><BODY BGCOLOR="#ffffff">
+<pre>
+
+--- [pc1] curl -sk -m 8 -o /dev/null -w 'HTTPS ok.lab -> HTTP %{http_code}\n' -x http://10.0.1.12:3128 https://ok.lab/ ---
+HTTPS ok.lab -> HTTP 200
+
+--- [pc1] curl -sk -m 8 -o /dev/null -x http://10.0.1.12:3128 https://bloqueado.lab/ ; echo "HTTPS bloqueado.lab -> curl exit $? (56 = CONNECT recusado pelo proxy)" ---
+HTTPS bloqueado.lab -> curl exit 56 (56 = CONNECT recusado pelo proxy)
+
+=== access.log do Squid (HIT/MISS/DENIED, cliente, metodo, URL) ===
+
+--- [proxy] cat /var/log/squid/access.log ---
+1793285419.526      1 10.0.1.10 TCP_REFRESH_UNMODIFIED/200 467 GET http://ok.lab/ - HIER_DIRECT/10.0.2.10 text/html
+1793285420.749      1 10.0.1.11 TCP_REFRESH_UNMODIFIED/200 318 GET http://externo.lab/ - HIER_DIRECT/198.51.100.2 text/html
+1793285424.041      0 10.0.1.10 TCP_MEM_HIT/200 467 GET http://ok.lab/ - HIER_NONE/- text/html
+1793285425.115      0 10.0.1.11 TCP_MEM_HIT/200 467 GET http://ok.lab/ - HIER_NONE/- text/html
+1793285426.224      0 10.0.1.10 TCP_DENIED/403 3422 GET http://bloqueado.lab/ - HIER_NONE/- text/html
+1793285427.279      0 10.0.1.11 TCP_DENIED/403 3422 GET http://bloqueado.lab/ - HIER_NONE/- text/html
+1793285428.345      1 10.0.1.10 TCP_REFRESH_UNMODIFIED/200 467 GET http://restrito.lab/ - HIER_DIRECT/10.0.2.10 text/html
+1793285429.389      0 10.0.1.11 TCP_DENIED/403 3420 GET http://restrito.lab/ - HIER_NONE/- text/html
+1793285430.448      6 10.0.1.10 TCP_TUNNEL/200 7085 CONNECT ok.lab:443 - HIER_DIRECT/10.0.2.10 -
+1793285431.527      6 10.0.1.10 TCP_TUNNEL/200 7085 CONNECT ok.lab:443 - HIER_DIRECT/10.0.2.10 -
+1793285432.660      0 10.0.1.10 TCP_DENIED/403 3426 CONNECT bloqueado.lab:443 - HIER_NONE/- text/html

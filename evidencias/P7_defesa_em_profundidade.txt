@@ -1,0 +1,52 @@
+
+=== Cenario 1: regra ACIDENTAL no fw libera Internet -> DMZ inteira na porta 80 ===
+
+--- [fw] iptables -I FORWARD 1 -i eth3 -o eth1 -p tcp --dport 80 -j ACCEPT ---
+
+===   O NGINX ainda protege o que passa por ele: ===
+
+--- [r0] curl -s -m 4 -o /dev/null -w 'r0 -> rp/admin/ : HTTP %{http_code}  (NGINX segura)\n' http://10.0.2.12/admin/ ---
+r0 -> rp/admin/ : HTTP 403  (NGINX segura)
+
+--- [r0] curl -s -m 4 -o /dev/null -w 'r0 -> rp POST  : HTTP %{http_code}  (NGINX segura)\n' -X POST http://10.0.2.12/ ---
+r0 -> rp POST  : HTTP 403  (NGINX segura)
+
+===   Mas o web, sem NGINX na frente, fica exposto (limite da defesa): ===
+
+--- [r0] curl -s -m 4 -o /dev/null -w 'r0 -> web/admin/ DIRETO : HTTP %{http_code}  (sem protecao)\n' http://10.0.2.10/admin/ ---
+r0 -> web/admin/ DIRETO : HTTP 200  (sem protecao)
+
+--- [fw] iptables -D FORWARD -i eth3 -o eth1 -p tcp --dport 80 -j ACCEPT ---
+
+===   Regra removida: web volta a ser inacessivel pela Internet ===
+
+--- [r0] curl -s -m 4 -o /dev/null -w 'r0 DIRETO -> http://10.0.2.10/admin/ : HTTP %{http_code}\n' --noproxy '*' http://10.0.2.10/admin/ || echo 'r0 DIRETO -> http://10.0.2.10/admin/ : BLOQUEADO/SEM RESPOSTA (curl exit '$?')' ---
+r0 DIRETO -> http://10.0.2.10/admin/ : HTTP 000
+r0 DIRETO -> http://10.0.2.10/admin/ : BLOQUEADO/SEM RESPOSTA (curl exit 28)
+
+=== Cenario 2: web COMPROMETIDO - o que ele alcanca? (exit 28 = timeout/bloqueado, 7 = recusado = alcancou o host) ===
+
+--- [web] curl -s -m 3 -o /dev/null http://10.0.1.10:22; echo 'web -> pc1 (LAN) : curl exit '$? ---
+web -> pc1 (LAN) : curl exit 28
+
+--- [web] curl -s -m 3 -o /dev/null http://10.0.1.12:3128; echo 'web -> proxy/Squid (LAN) : curl exit '$? ---
+web -> proxy/Squid (LAN) : curl exit 28
+
+--- [web] curl -s -m 3 -o /dev/null http://10.0.3.10:22; echo 'web -> adm (Gerencia) : curl exit '$? ---
+web -> adm (Gerencia) : curl exit 28
+
+--- [web] curl -s -m 3 -o /dev/null http://198.51.100.2/; echo 'web -> Internet (r0:80, tem servico) : curl exit '$? ---
+web -> Internet (r0:80, tem servico) : curl exit 28
+
+--- [web] curl -s -m 3 -o /dev/null http://10.0.2.12/; echo 'web -> rp (mesma DMZ, nao passa pelo fw) : curl exit '$? ---
+web -> rp (mesma DMZ, nao passa pelo fw) : curl exit 0
+
+--- [fw] iptables -L FORWARD -v -n --line-numbers ---
+Chain FORWARD (policy DROP 20 packets, 1200 bytes)
+num   pkts bytes target     prot opt in     out     source               destination         
+1      321 47145 ACCEPT     0    --  *      *       0.0.0.0/0            0.0.0.0/0            ctstate RELATED,ESTABLISHED
+2        2   116 ACCEPT     0    --  eth0   eth3    10.0.1.12            0.0.0.0/0            ctstate NEW
+3        7   420 ACCEPT     6    --  eth0   eth1    10.0.1.12            10.0.2.10            multiport dports 80,443 ctstate NEW
+4       22  1320 ACCEPT     6    --  eth3   eth1    0.0.0.0/0            10.0.2.12            tcp dpt:80 ctstate NEW
+5        1    60 ACCEPT     6    --  eth2   eth1    0.0.0.0/0            10.0.2.12            tcp dpt:80 ctstate NEW
+6        8   480 DROP       0    --  eth3   *       0.0.0.0/0            10.0.2.10           

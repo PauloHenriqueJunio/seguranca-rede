@@ -1,0 +1,27 @@
+
+=== Internet (r0) -> web DIRETO (deve PASSAR: web exposto) ===
+
+--- [r0] curl -s -m 4 -o /dev/null -w 'r0 DIRETO -> http://10.0.2.10/ : HTTP %{http_code}\n' --noproxy '*' http://10.0.2.10/ || echo 'r0 DIRETO -> http://10.0.2.10/ : BLOQUEADO/SEM RESPOSTA (curl exit '$?')' ---
+r0 DIRETO -> http://10.0.2.10/ : HTTP 200
+
+=== Internet (r0) -> rp (nao permitido ainda no 'antes') ===
+
+--- [r0] curl -s -m 4 -o /dev/null -w 'r0 DIRETO -> http://10.0.2.12/ : HTTP %{http_code}\n' --noproxy '*' http://10.0.2.12/ || echo 'r0 DIRETO -> http://10.0.2.12/ : BLOQUEADO/SEM RESPOSTA (curl exit '$?')' ---
+r0 DIRETO -> http://10.0.2.12/ : HTTP 000
+r0 DIRETO -> http://10.0.2.12/ : BLOQUEADO/SEM RESPOSTA (curl exit 28)
+
+=== pc1 DIRETO -> web e -> Internet (LAN sai sem proxy: deve PASSAR) ===
+
+--- [pc1] curl -s -m 4 -o /dev/null -w 'pc1 DIRETO -> http://10.0.2.10/ : HTTP %{http_code}\n' --noproxy '*' http://10.0.2.10/ || echo 'pc1 DIRETO -> http://10.0.2.10/ : BLOQUEADO/SEM RESPOSTA (curl exit '$?')' ---
+pc1 DIRETO -> http://10.0.2.10/ : HTTP 200
+
+--- [pc1] curl -s -m 4 -o /dev/null -w 'pc1 DIRETO -> http://198.51.100.2/ : HTTP %{http_code}\n' --noproxy '*' http://198.51.100.2/ || echo 'pc1 DIRETO -> http://198.51.100.2/ : BLOQUEADO/SEM RESPOSTA (curl exit '$?')' ---
+pc1 DIRETO -> http://198.51.100.2/ : HTTP 200
+
+--- [fw] iptables -L FORWARD -v -n --line-numbers ---
+Chain FORWARD (policy DROP 4 packets, 240 bytes)
+num   pkts bytes target     prot opt in     out     source               destination         
+1       27  2536 ACCEPT     0    --  *      *       0.0.0.0/0            0.0.0.0/0            ctstate RELATED,ESTABLISHED
+2        1    60 ACCEPT     0    --  eth0   eth3    10.0.1.0/24          0.0.0.0/0            ctstate NEW
+3        1    60 ACCEPT     0    --  eth0   eth1    10.0.1.0/24          10.0.2.0/24          ctstate NEW
+4        1    60 ACCEPT     6    --  eth3   eth1    0.0.0.0/0            10.0.2.10            tcp dpt:80 ctstate NEW

@@ -1,0 +1,15 @@
+
+--- [web] ss -ltn | grep -E ':80|:443' ---
+LISTEN 0      5            0.0.0.0:80         0.0.0.0:*   
+LISTEN 0      4096               *:443              *:*   
+
+--- [proxy] ss -ltn | grep 3128 ---
+LISTEN 0      4096         0.0.0.0:3128       0.0.0.0:*   
+
+--- [rp] ss -ltn | grep ':80'; nginx -t ---
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+LISTEN 0      511          0.0.0.0:80         0.0.0.0:*   
+
+--- [r0] ss -ltn | grep ':80' ---
+LISTEN 0      5            0.0.0.0:80         0.0.0.0:*   

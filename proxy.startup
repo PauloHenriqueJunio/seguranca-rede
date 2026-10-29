@@ -1,5 +1,10 @@
-# Rodar o comando docker build -t kathara-proxy . (coloca o ponto plmds)
-ifconfig eth0 10.0.2.12/24
-route add default gw 10.0.2.1
-service nginx start
+# Forward Proxy (Squid) na LAN
+# Requer a imagem: docker build -t kathara-proxy .
+ifconfig eth0 10.0.1.12/24
+route add default gw 10.0.1.1
+
+# Nomes de teste (o Squid resolve via /etc/hosts): mesmo IP do web, dominios diferentes
+echo "10.0.2.10 ok.lab bloqueado.lab restrito.lab" >> /etc/hosts
+echo "198.51.100.2 externo.lab" >> /etc/hosts
+
 service squid start

@@ -1,0 +1,40 @@
+# Rate limiting: 2 req/s por IP de origem (zona de 10 MB)
+limit_req_zone $binary_remote_addr zone=por_ip:10m rate=2r/s;
+limit_req_status 429;
+
+server {
+    listen 80;
+    server_tokens off;
+
+    access_log /var/log/nginx/rp_access.log;
+
+    # Headers de seguranca
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Content-Security-Policy "default-src 'self'" always;
+
+    # /admin: so a rede de gerencia (10.0.3.0/24)
+    location /admin {
+        allow 10.0.3.0/24;
+        deny all;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_pass http://10.0.2.10;
+    }
+
+    location / {
+        # So GET e HEAD; POST, PUT, DELETE... recebem 403
+        limit_except GET HEAD {
+            deny all;
+        }
+
+        limit_req zone=por_ip burst=5 nodelay;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_pass http://10.0.2.10;
+    }
+}

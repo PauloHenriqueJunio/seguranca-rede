@@ -1,0 +1,39 @@
+
+=== Squid: ok.lab e bloqueado.lab tem o MESMO IP (10.0.2.10); o Squid separa pelo nome ===
+
+--- [pc1] curl -s -m 8 -o /dev/null -w 'pc1 via Squid -> http://ok.lab/ : HTTP %{http_code}\n' -x http://10.0.1.12:3128 http://ok.lab/ || echo 'pc1 via Squid -> http://ok.lab/ : FALHOU (curl exit '$?')' ---
+pc1 via Squid -> http://ok.lab/ : HTTP 200
+
+--- [pc1] curl -s -m 8 -o /dev/null -w 'pc1 via Squid -> http://bloqueado.lab/ : HTTP %{http_code}\n' -x http://10.0.1.12:3128 http://bloqueado.lab/ || echo 'pc1 via Squid -> http://bloqueado.lab/ : FALHOU (curl exit '$?')' ---
+pc1 via Squid -> http://bloqueado.lab/ : HTTP 403
+
+=== Firewall bloqueando o IP 10.0.2.10 para o Squid (REJECT). URL ja em cache continua saindo do cache (o firewall nem e consultado): ===
+
+--- [fw] iptables -I FORWARD 1 -s 10.0.1.12 -d 10.0.2.10 -j REJECT --reject-with icmp-host-prohibited ---
+
+--- [pc1] curl -s -m 8 -o /dev/null -w 'pc1 via Squid -> http://ok.lab/ : HTTP %{http_code}\n' -x http://10.0.1.12:3128 http://ok.lab/ || echo 'pc1 via Squid -> http://ok.lab/ : FALHOU (curl exit '$?')' ---
+pc1 via Squid -> http://ok.lab/ : HTTP 200
+
+===   URLs NAO cacheadas (?teste=N) precisam ir ao web: o firewall derruba o ok.lab (503), que era para passar; o bloqueado.lab segue 403 pelo Squid, que nega antes de tentar conectar ===
+
+--- [pc1] curl -s -m 8 -o /dev/null -w 'pc1 via Squid -> http://ok.lab/?teste=1 : HTTP %{http_code}\n' -x http://10.0.1.12:3128 http://ok.lab/?teste=1 || echo 'pc1 via Squid -> http://ok.lab/?teste=1 : FALHOU (curl exit '$?')' ---
+pc1 via Squid -> http://ok.lab/?teste=1 : HTTP 503
+
+--- [pc1] curl -s -m 8 -o /dev/null -w 'pc1 via Squid -> http://bloqueado.lab/?teste=2 : HTTP %{http_code}\n' -x http://10.0.1.12:3128 http://bloqueado.lab/?teste=2 || echo 'pc1 via Squid -> http://bloqueado.lab/?teste=2 : FALHOU (curl exit '$?')' ---
+pc1 via Squid -> http://bloqueado.lab/?teste=2 : HTTP 403
+
+--- [fw] iptables -L FORWARD -v -n --line-numbers | head -4 ---
+Chain FORWARD (policy DROP 8 packets, 480 bytes)
+num   pkts bytes target     prot opt in     out     source               destination         
+1        1    60 REJECT     0    --  *      *       10.0.1.12            10.0.2.10            reject-with icmp-host-prohibited
+2      110 24176 ACCEPT     0    --  *      *       0.0.0.0/0            0.0.0.0/0            ctstate RELATED,ESTABLISHED
+
+--- [fw] iptables -D FORWARD -s 10.0.1.12 -d 10.0.2.10 -j REJECT --reject-with icmp-host-prohibited ---
+
+=== Regra removida: ok.lab volta (URL nova), bloqueado.lab segue 403 so por causa do Squid ===
+
+--- [pc1] curl -s -m 8 -o /dev/null -w 'pc1 via Squid -> http://ok.lab/?teste=3 : HTTP %{http_code}\n' -x http://10.0.1.12:3128 http://ok.lab/?teste=3 || echo 'pc1 via Squid -> http://ok.lab/?teste=3 : FALHOU (curl exit '$?')' ---
+pc1 via Squid -> http://ok.lab/?teste=3 : HTTP 200
+
+--- [pc1] curl -s -m 8 -o /dev/null -w 'pc1 via Squid -> http://bloqueado.lab/?teste=4 : HTTP %{http_code}\n' -x http://10.0.1.12:3128 http://bloqueado.lab/?teste=4 || echo 'pc1 via Squid -> http://bloqueado.lab/?teste=4 : FALHOU (curl exit '$?')' ---
+pc1 via Squid -> http://bloqueado.lab/?teste=4 : HTTP 403

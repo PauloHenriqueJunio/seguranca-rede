@@ -3,4 +3,7 @@ route add -net 10.0.1.0/24 gw 198.51.100.1
 route add -net 10.0.2.0/24 gw 198.51.100.1
 route add -net 10.0.3.0/24 gw 198.51.100.1
 
-
+# "Internet": site externo simples para o Squid acessar
+mkdir -p /tmp/www && echo "OK-EXTERNO" > /tmp/www/index.html
+cd /tmp/www
+nohup python3 -m http.server 80 > /tmp/http80.log 2>&1 &

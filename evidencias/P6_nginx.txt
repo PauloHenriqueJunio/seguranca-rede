@@ -1,0 +1,63 @@
+
+=== Controle 1: /admin so para a rede de gerencia (10.0.3.0/24) ===
+
+--- [r0] curl -s -m 4 --noproxy '*' -o /dev/null -w 'r0 (Internet) -> rp/admin/ : HTTP %{http_code}\n' http://10.0.2.12/admin/ ---
+r0 (Internet) -> rp/admin/ : HTTP 403
+
+--- [adm] curl -s -m 4 --noproxy '*' -w ' <- adm -> rp/admin/ : HTTP %{http_code}\n' http://10.0.2.12/admin/ | grep -E 'OK-ADMIN|HTTP' ---
+<html><body><h1>OK-ADMIN</h1><p>Area administrativa do servidor web (10.0.2.10).</p></body></html>
+ <- adm -> rp/admin/ : HTTP 200
+
+=== Controle 2: so GET/HEAD (POST e DELETE recebem 403) ===
+
+--- [r0] curl -s -m 4 -o /dev/null -w 'GET    / : HTTP %{http_code}\n' http://10.0.2.12/ ---
+GET    / : HTTP 200
+
+--- [r0] curl -s -m 4 -o /dev/null -w 'POST   / : HTTP %{http_code}\n' -X POST -d x=1 http://10.0.2.12/ ---
+POST   / : HTTP 403
+
+--- [r0] curl -s -m 4 -o /dev/null -w 'DELETE / : HTTP %{http_code}\n' -X DELETE http://10.0.2.12/ ---
+DELETE / : HTTP 403
+
+=== Controle 3: headers de seguranca (e server_tokens off: sem versao do nginx) ===
+
+--- [r0] curl -sI -m 4 http://10.0.2.12/ ---
+HTTP/1.1 200 OK
+Server: nginx
+Date: Thu, 29 Oct 2026 14:51:07 GMT
+Content-Type: text/html
+Content-Length: 159
+Connection: keep-alive
+Last-Modified: Thu, 29 Oct 2026 14:41:28 GMT
+X-Frame-Options: DENY
+X-Content-Type-Options: nosniff
+Content-Security-Policy: default-src 'self'
+
+=== Controle 4: rate limiting (2 req/s, burst 5): 15 requisicoes seguidas do mesmo IP ===
+
+--- [r0] for i in $(seq 1 15); do curl -s -m 4 -o /dev/null -w '%{http_code} ' http://10.0.2.12/; done; echo ---
+200 200 200 200 200 200 429 429 429 429 429 429 429 429 429 
+
+=== Log do NGINX: requisicoes suspeitas (403 = negada, 429 = limitada) ===
+
+--- [rp] grep -E '" (403|429) ' /var/log/nginx/rp_access.log | head -n 12 ---
+198.51.100.2 - - [29/Oct/2026:14:51:01 +0000] "GET /admin/ HTTP/1.1" 403 146 "-" "curl/7.88.1"
+198.51.100.2 - - [29/Oct/2026:14:51:04 +0000] "POST / HTTP/1.1" 403 146 "-" "curl/7.88.1"
+198.51.100.2 - - [29/Oct/2026:14:51:06 +0000] "DELETE / HTTP/1.1" 403 146 "-" "curl/7.88.1"
+198.51.100.2 - - [29/Oct/2026:14:51:10 +0000] "GET / HTTP/1.1" 429 162 "-" "curl/7.88.1"
+198.51.100.2 - - [29/Oct/2026:14:51:10 +0000] "GET / HTTP/1.1" 429 162 "-" "curl/7.88.1"
+198.51.100.2 - - [29/Oct/2026:14:51:10 +0000] "GET / HTTP/1.1" 429 162 "-" "curl/7.88.1"
+198.51.100.2 - - [29/Oct/2026:14:51:10 +0000] "GET / HTTP/1.1" 429 162 "-" "curl/7.88.1"
+198.51.100.2 - - [29/Oct/2026:14:51:10 +0000] "GET / HTTP/1.1" 429 162 "-" "curl/7.88.1"
+198.51.100.2 - - [29/Oct/2026:14:51:10 +0000] "GET / HTTP/1.1" 429 162 "-" "curl/7.88.1"
+198.51.100.2 - - [29/Oct/2026:14:51:10 +0000] "GET / HTTP/1.1" 429 162 "-" "curl/7.88.1"
+198.51.100.2 - - [29/Oct/2026:14:51:10 +0000] "GET / HTTP/1.1" 429 162 "-" "curl/7.88.1"
+198.51.100.2 - - [29/Oct/2026:14:51:10 +0000] "GET / HTTP/1.1" 429 162 "-" "curl/7.88.1"
+
+=== O web ve apenas o rp como cliente (10.0.2.12) ===
+
+--- [web] tail -n 4 /tmp/http80.log ---
+10.0.2.12 - - [29/Oct/2026 14:51:10] "GET / HTTP/1.0" 200 -
+10.0.2.12 - - [29/Oct/2026 14:51:10] "GET / HTTP/1.0" 200 -
+10.0.2.12 - - [29/Oct/2026 14:51:10] "GET / HTTP/1.0" 200 -
+10.0.2.12 - - [29/Oct/2026 14:51:10] "GET / HTTP/1.0" 200 -

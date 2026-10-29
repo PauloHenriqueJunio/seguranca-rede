@@ -1,0 +1,4 @@
+
+--- [fw] iptables -L FORWARD -n | head -3 ---
+Chain FORWARD (policy ACCEPT)
+target     prot opt source               destination         

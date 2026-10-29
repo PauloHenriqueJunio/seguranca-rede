@@ -1,0 +1,5 @@
+# Reverse Proxy (NGINX) na DMZ
+# Requer a imagem: docker build -t kathara-proxy .
+ifconfig eth0 10.0.2.12/24
+route add default gw 10.0.2.1
+service nginx start
